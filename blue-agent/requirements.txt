@@ -1,0 +1,5 @@
+groq==0.28.0
+python-dotenv==1.0.1
+crewai==0.148.0
+crewai-tools==0.51.1
+langchain-groq==0.2.4

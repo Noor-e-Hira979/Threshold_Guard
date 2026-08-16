@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  target-app:
+    image: vulnerables/web-dvwa
+    ports:
+      - "8080:80"
+    container_name: thresholdguard-target
+
+  opa:
+    image: openpolicyagent/opa:latest
+    ports:
+      - "8181:8181"
+    container_name: thresholdguard-opa
+    command: ["run", "--server", "--addr", "0.0.0.0:8181", "/policies"]
+    volumes:
+      - ./governor/opa-policies:/policies
