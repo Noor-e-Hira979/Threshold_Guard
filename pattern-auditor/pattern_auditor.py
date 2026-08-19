@@ -17,7 +17,7 @@ from action_store import get_recent_actions
 
 REPEAT_TARGET_THRESHOLD = 3
 SAME_TYPE_BURST_THRESHOLD = 5
-WINDOW_MINUTES = 10
+WINDOW_MINUTES = 45
 
 
 def audit_recent_actions() -> dict:

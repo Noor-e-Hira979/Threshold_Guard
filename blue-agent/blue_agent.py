@@ -95,6 +95,46 @@ def _execute_tool(name: str, args: dict) -> str:
         return f"Unknown tool: {name}"
 
 
+def analyze_log_text(log_text: str) -> dict:
+    """
+    Runs the Blue Agent's reasoning directly on PRE-SUPPLIED log text,
+    bypassing the tool-fetch step. Used for controlled evaluation (e.g.
+    log injection testing) where we need to feed specific, crafted log
+    content rather than live data.
+    """
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": f"Analyze this log data for malicious activity:\n\n{log_text}"},
+    ]
+
+    payload = {
+        "model": MODEL,
+        "messages": messages,
+        "stream": False,
+        "options": {"temperature": 0.2},
+    }
+
+    try:
+        resp = requests.post(OLLAMA_URL, json=payload, timeout=180)
+        resp.raise_for_status()
+        raw_output = resp.json()["message"]["content"].strip()
+    except requests.exceptions.RequestException as e:
+        print(f"[!] Analysis request failed: {e}")
+        return {"threats_detected": []}
+
+    if raw_output.startswith("```"):
+        raw_output = raw_output.strip("`")
+        if raw_output.startswith("json"):
+            raw_output = raw_output[4:].strip()
+
+    try:
+        return json.loads(raw_output)
+    except json.JSONDecodeError:
+        print("[!] Analysis did not return valid JSON. Raw output:")
+        print(raw_output)
+        return {"threats_detected": []}
+
+
 def run_blue_agent_investigation() -> dict:
     """
     Runs the custom agentic loop: the model decides which tool(s) to call
