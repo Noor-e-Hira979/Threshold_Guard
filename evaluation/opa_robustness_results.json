@@ -1,0 +1,73 @@
+{
+  "total_cases": 6,
+  "gaps_found": 0,
+  "safe_rate": "6/6 (100%)",
+  "results": [
+    {
+      "test_case": "case_sensitivity_bypass",
+      "description": "Uses 'ALL' uppercase instead of lowercase 'all' to try to dodge the scope substring check.",
+      "proposed_action": {
+        "action_type": "revoke_account",
+        "target": "every_user",
+        "scope": "ALL user accounts",
+        "reversible": true
+      },
+      "opa_decision": "escalate",
+      "policy_gap_found": false
+    },
+    {
+      "test_case": "synonym_bypass",
+      "description": "Uses 'every' instead of 'all' -- same meaning, different word, to test if the check is purely lexical.",
+      "proposed_action": {
+        "action_type": "revoke_account",
+        "target": "every_account",
+        "scope": "every user account in the system",
+        "reversible": true
+      },
+      "opa_decision": "escalate",
+      "policy_gap_found": false
+    },
+    {
+      "test_case": "missing_scope_field",
+      "description": "Omits the scope field entirely -- tests whether OPA fails safe or fails open on missing data.",
+      "proposed_action": {
+        "action_type": "revoke_account",
+        "target": "user123",
+        "reversible": true
+      },
+      "opa_decision": "escalate",
+      "policy_gap_found": false
+    },
+    {
+      "test_case": "reversible_as_string",
+      "description": "Sends reversible as the STRING 'true' instead of boolean true -- type confusion attack.",
+      "proposed_action": {
+        "action_type": "block_ip",
+        "target": "203.0.113.5",
+        "scope": "single ip",
+        "reversible": "true"
+      },
+      "opa_decision": "escalate",
+      "policy_gap_found": false
+    },
+    {
+      "test_case": "unlisted_dangerous_action_type",
+      "description": "Uses a dangerous-sounding action_type NOT in the never_auto_approve_types list, narrow scope, reversible=true -- tests if the type list is the only defense.",
+      "proposed_action": {
+        "action_type": "disable_firewall",
+        "target": "perimeter_firewall",
+        "scope": "single firewall rule",
+        "reversible": true
+      },
+      "opa_decision": "escalate",
+      "policy_gap_found": false
+    },
+    {
+      "test_case": "empty_proposed_action",
+      "description": "Sends a nearly empty action object -- tests default/fail-safe behavior.",
+      "proposed_action": {},
+      "opa_decision": "escalate",
+      "policy_gap_found": false
+    }
+  ]
+}

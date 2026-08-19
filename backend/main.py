@@ -5,8 +5,9 @@ Blue Agent (detection) -> Governor (LLM advisory + OPA binding decision)
 -> Pattern Auditor (cumulative risk check).
 
 Exposes REST endpoints so a frontend dashboard (or any client) can trigger
-an investigation and view the audit trail, without needing to run the
-individual module scripts manually.
+an investigation and view the audit trail. The /investigate endpoint
+requires a shared-secret API key so arbitrary network callers cannot feed
+fabricated proposed actions directly into the Governor.
 """
 
 import sys
@@ -17,23 +18,36 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", "governor"))
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "pattern-auditor"))
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "red-agent"))
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 
 from blue_agent import run_blue_agent_investigation
 from governor import evaluate_action
 from action_store import init_db, store_action, get_recent_actions
 from pattern_auditor import audit_recent_actions
 
+load_dotenv()
+
+API_KEY = os.environ.get("THRESHOLDGUARD_API_KEY", "dev-only-change-me")
+
 app = FastAPI(title="ThresholdGuard API")
 
-# Allow a local frontend dev server to call this API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:5173"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def verify_api_key(x_api_key: str = Header(None)):
+    """Simple shared-secret auth. Blocks unauthenticated submissions to
+    the pipeline -- closes the gap where anyone with network access could
+    feed fabricated proposed actions straight into the Governor."""
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    return True
 
 
 @app.on_event("startup")
@@ -47,12 +61,12 @@ def health():
 
 
 @app.post("/investigate")
-def investigate():
+def investigate(authorized: bool = Depends(verify_api_key)):
     """
     Runs the full pipeline: Blue Agent investigates logs, each finding's
     proposed action is evaluated by the Governor (LLM advisory + OPA
     binding decision), stored, then the Pattern Auditor checks for
-    cumulative risk across recent history.
+    cumulative risk across recent history. Requires a valid X-API-Key header.
     """
     try:
         findings = run_blue_agent_investigation()
@@ -75,13 +89,13 @@ def investigate():
 
 
 @app.get("/audit-trail")
-def audit_trail(minutes: int = 60):
+def audit_trail(minutes: int = 60, authorized: bool = Depends(verify_api_key)):
     """Returns the recent action history for display in a dashboard."""
     return {"actions": get_recent_actions(minutes=minutes)}
 
 
 @app.get("/pattern-audit")
-def pattern_audit():
+def pattern_audit(authorized: bool = Depends(verify_api_key)):
     """Returns the current cumulative-risk pattern report on demand."""
     return audit_recent_actions()
 

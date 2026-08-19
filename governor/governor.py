@@ -1,11 +1,12 @@
 """
 governor.py
-The Governor: combines the LLM's advisory risk assessment with OPA's
-binding, deterministic decision into a single audit record.
+The Governor: runs a proposed action through the full two-tier LLM check
+(fast Advisor -> stronger Supervisor cross-check) plus OPA's binding
+decision, combining everything into a single audit record.
 
-Core safety design: OPA's decision is ALWAYS final. The LLM's verdict is
-recorded for transparency/human review, but never overrides OPA -- this is
-what keeps the system safe even if the LLM is jailbroken or manipulated.
+Core safety design: OPA's decision is ALWAYS final. Neither LLM tier can
+override it -- this is what keeps the system safe even if one or both
+LLMs are manipulated. Both LLM tiers now run locally via Ollama.
 """
 
 import json
@@ -13,15 +14,19 @@ from datetime import datetime, timezone
 
 from llm_advisor import get_advisory_verdict
 from opa_client import get_opa_decision
+from supervisor import supervise_advisory
 
 
 def evaluate_action(proposed_action: dict, detection_reasoning: str) -> dict:
     """
-    Runs a proposed action through both the LLM advisor and OPA, and
-    returns a single combined audit record. OPA's decision is the
-    authoritative outcome; the LLM's verdict is advisory context only.
+    Runs a proposed action through the full two-tier Governor: the fast
+    Advisor produces an initial risk assessment, the stronger Supervisor
+    cross-checks that assessment for signs of manipulation, and OPA makes
+    the final BINDING decision -- unaffected by either LLM tier, per
+    ThresholdGuard's core safety design.
     """
     advisory = get_advisory_verdict(proposed_action, detection_reasoning)
+    supervision = supervise_advisory(proposed_action, advisory)
     final_decision = get_opa_decision(proposed_action)
 
     llm_opa_agreement = advisory["advisory_verdict"] == final_decision
@@ -31,6 +36,7 @@ def evaluate_action(proposed_action: dict, detection_reasoning: str) -> dict:
         "proposed_action": proposed_action,
         "detection_reasoning": detection_reasoning,
         "llm_advisory": advisory,
+        "supervisor_check": supervision,
         "final_decision": final_decision,  # <-- authoritative, from OPA
         "llm_opa_agreement": llm_opa_agreement,
     }
@@ -38,6 +44,8 @@ def evaluate_action(proposed_action: dict, detection_reasoning: str) -> dict:
     print(f"[Governor] Final decision (OPA, authoritative): {final_decision.upper()}")
     print(f"[Governor] LLM advisory verdict was: {advisory['advisory_verdict']} "
           f"({'agrees' if llm_opa_agreement else 'DISAGREES -- OPA overrides'})")
+    print(f"[Governor] Supervisor cross-check: "
+          f"{'MANIPULATION SUSPECTED' if supervision['manipulation_suspected'] else 'advisor reasoning holds up'}")
 
     return record
 

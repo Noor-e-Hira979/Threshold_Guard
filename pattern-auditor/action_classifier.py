@@ -7,17 +7,15 @@ same agent on different runs) phrase them differently -- e.g. "Account
 Isolation", "Account Lockout", and "revoke_single_session" should all be
 recognized as the same underlying category of action.
 
-Includes a self-correction retry loop, same pattern as llm_advisor.py.
+Runs locally via Ollama -- no data leaves the machine. Includes a
+self-correction retry loop, same pattern as llm_advisor.py.
 """
 
-import os
 import json
-from dotenv import load_dotenv
-from groq import Groq
+import requests
 
-load_dotenv()
-
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+OLLAMA_URL = "http://localhost:11434/api/chat"
+CLASSIFIER_MODEL = "qwen2.5-coder:7b-instruct-q4_0"
 
 # Fixed taxonomy -- the Pattern Auditor groups by these categories, not raw strings.
 CANONICAL_CATEGORIES = [
@@ -56,12 +54,22 @@ def classify_action(proposed_action: dict) -> str:
 
     attempt = 0
     while attempt <= MAX_RETRIES:
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=messages,
-            temperature=0.0,
-        )
-        raw_output = response.choices[0].message.content.strip()
+        payload = {
+            "model": CLASSIFIER_MODEL,
+            "messages": messages,
+            "stream": False,
+            "format": "json",
+            "options": {"temperature": 0.0},
+            "keep_alive": 0,
+        }
+
+        try:
+            resp = requests.post(OLLAMA_URL, json=payload, timeout=60)
+            resp.raise_for_status()
+            raw_output = resp.json()["message"]["content"].strip()
+        except requests.exceptions.RequestException as e:
+            print(f"[!] Classifier request failed ({e}). Falling back to 'other'.")
+            return "other"
 
         try:
             parsed = json.loads(raw_output)

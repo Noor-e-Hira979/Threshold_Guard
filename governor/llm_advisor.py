@@ -1,21 +1,21 @@
 """
 llm_advisor.py
-Governor's LLM reasoning layer. Produces an ADVISORY verdict + explanation
-for a proposed action -- this is NEVER the final decision (OPA is), but it
-gives human reviewers useful reasoning in the audit trail.
+Governor's LLM reasoning layer (Advisor tier). Produces an ADVISORY
+verdict + explanation for a proposed action -- this is NEVER the final
+decision (OPA is), but it gives human reviewers and the Supervisor tier
+useful reasoning in the audit trail.
 
-Includes a self-correction loop: if the LLM returns malformed output, it is
-re-prompted with the validation error before giving up.
+Runs locally via Ollama (qwen2.5-coder) -- no data leaves the machine.
+
+Includes a self-correction retry loop: if the model returns malformed
+output, it is re-prompted with the validation error before giving up.
 """
 
-import os
 import json
-from dotenv import load_dotenv
-from groq import Groq
+import requests
 
-load_dotenv()
-
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+OLLAMA_URL = "http://localhost:11434/api/chat"
+ADVISOR_MODEL = "qwen2.5-coder:7b-instruct-q4_0"
 
 ADVISOR_SYSTEM_PROMPT = """You are a security governance advisor. You will be given a proposed
 remediation action (from a defensive security agent) along with the
@@ -39,9 +39,9 @@ MAX_RETRIES = 2
 
 def get_advisory_verdict(proposed_action: dict, detection_reasoning: str) -> dict:
     """
-    Calls the LLM to produce an advisory risk assessment for a proposed
-    action. Self-corrects up to MAX_RETRIES times if the model returns
-    invalid JSON or missing required fields.
+    Calls the local Advisor model to produce an advisory risk assessment
+    for a proposed action. Self-corrects up to MAX_RETRIES times if the
+    model returns invalid JSON or missing required fields.
     """
     user_content = (
         f"Detection reasoning: {detection_reasoning}\n\n"
@@ -55,12 +55,26 @@ def get_advisory_verdict(proposed_action: dict, detection_reasoning: str) -> dic
 
     attempt = 0
     while attempt <= MAX_RETRIES:
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=messages,
-            temperature=0.2,
-        )
-        raw_output = response.choices[0].message.content.strip()
+        payload = {
+            "model": ADVISOR_MODEL,
+            "messages": messages,
+            "stream": False,
+            "format": "json",
+            "options": {"temperature": 0.2},
+            "keep_alive": 0,
+        }
+
+        try:
+            resp = requests.post(OLLAMA_URL, json=payload, timeout=120)
+            resp.raise_for_status()
+            raw_output = resp.json()["message"]["content"].strip()
+        except requests.exceptions.RequestException as e:
+            print(f"[!] Advisor request failed: {e}. Failing safe.")
+            return {
+                "risk_assessment": "high",
+                "advisory_verdict": "escalate",
+                "explanation": f"Advisor could not be reached ({e}); failing safe.",
+            }
 
         try:
             parsed = json.loads(raw_output)
@@ -81,7 +95,6 @@ def get_advisory_verdict(proposed_action: dict, detection_reasoning: str) -> dic
                     "advisory_verdict": "escalate",
                     "explanation": "LLM advisor failed to produce valid output after retries; failing safe.",
                 }
-            # Self-correction: feed the error back to the model and ask it to fix its output
             messages.append({"role": "assistant", "content": raw_output})
             messages.append({
                 "role": "user",
