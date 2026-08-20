@@ -1,0 +1,65 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-base: #0A0E17;
+  --color-surface: #0F1420;
+  --color-surface2: #151B2B;
+  --color-cyan: #22D3EE;
+  --color-violet: #A78BFA;
+  --color-approve: #4ADE80;
+  --color-escalate: #FBBF24;
+  --color-block: #F87171;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-sans: 'Inter', ui-sans-serif, sans-serif;
+}
+
+body {
+  background: #0A0E17;
+  color: #E2E8F0;
+  font-family: 'Inter', sans-serif;
+}
+
+.glass {
+  background: rgba(15, 20, 32, 0.55);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.glow-border-cyan { border: 1px solid rgba(34, 211, 238, 0.4); }
+.shadow-glowCyan { box-shadow: 0 0 24px rgba(34, 211, 238, 0.3); }
+.shadow-glowViolet { box-shadow: 0 0 24px rgba(167, 139, 250, 0.3); }
+.shadow-glowApprove { box-shadow: 0 0 16px rgba(74, 222, 128, 0.45); }
+.shadow-glowEscalate { box-shadow: 0 0 16px rgba(251, 191, 36, 0.45); }
+.shadow-glowBlock { box-shadow: 0 0 16px rgba(248, 113, 113, 0.45); }
+
+.text-gradient {
+  background: linear-gradient(90deg, #22D3EE, #A78BFA);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 12px rgba(34, 211, 238, 0.4); }
+  50% { box-shadow: 0 0 28px rgba(34, 211, 238, 0.7); }
+}
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow { animation: spin-slow 3s linear infinite; }
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up { animation: fade-in-up 0.5s ease-out both; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+.animate-float { animation: float 4s ease-in-out infinite; }

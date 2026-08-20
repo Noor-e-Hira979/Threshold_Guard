@@ -7,6 +7,12 @@ known litellm<->Ollama multi-turn tool-calling compatibility bug.
 The agent still has genuine autonomy: it decides for itself which tool(s)
 to call, how many times, and when it has enough information to conclude --
 this is a hand-rolled ReAct-style loop, not a scripted sequence.
+
+Every return path includes a "status" field ("ok" or "error") so callers
+(the backend API, the frontend) can distinguish a genuine "no threats
+found" result from a failed/incomplete investigation -- these previously
+looked identical, which made it impossible to tell whether the pipeline
+actually ran.
 """
 
 import os
@@ -120,7 +126,7 @@ def analyze_log_text(log_text: str) -> dict:
         raw_output = resp.json()["message"]["content"].strip()
     except requests.exceptions.RequestException as e:
         print(f"[!] Analysis request failed: {e}")
-        return {"threats_detected": []}
+        return {"threats_detected": [], "status": "error", "error_detail": f"Request failed: {e}"}
 
     if raw_output.startswith("```"):
         raw_output = raw_output.strip("`")
@@ -128,11 +134,13 @@ def analyze_log_text(log_text: str) -> dict:
             raw_output = raw_output[4:].strip()
 
     try:
-        return json.loads(raw_output)
+        parsed = json.loads(raw_output)
+        parsed.setdefault("status", "ok")
+        return parsed
     except json.JSONDecodeError:
         print("[!] Analysis did not return valid JSON. Raw output:")
         print(raw_output)
-        return {"threats_detected": []}
+        return {"threats_detected": [], "status": "error", "error_detail": "Model returned invalid JSON"}
 
 
 def run_blue_agent_investigation() -> dict:
@@ -160,7 +168,7 @@ def run_blue_agent_investigation() -> dict:
             message = resp.json()["message"]
         except requests.exceptions.RequestException as e:
             print(f"[!] Blue Agent request failed: {e}")
-            return {"threats_detected": []}
+            return {"threats_detected": [], "status": "error", "error_detail": f"Request failed: {e}"}
 
         tool_calls = message.get("tool_calls")
 
@@ -188,7 +196,7 @@ def run_blue_agent_investigation() -> dict:
         except json.JSONDecodeError:
             print("[!] Blue Agent did not return valid JSON. Raw output:")
             print(raw_output)
-            return {"threats_detected": []}
+            return {"threats_detected": [], "status": "error", "error_detail": "Model returned invalid JSON"}
 
         # Fallback: some smaller models emit a tool call as plain-text JSON
         # in "content" instead of populating the structured tool_calls field.
@@ -203,10 +211,15 @@ def run_blue_agent_investigation() -> dict:
             messages.append({"role": "tool", "content": result})
             continue
 
+        parsed["status"] = "ok"
         return parsed
 
     print("[!] Blue Agent reached max iterations without a final answer.")
-    return {"threats_detected": []}
+    return {
+        "threats_detected": [],
+        "status": "error",
+        "error_detail": "Reached max iterations without a final answer",
+    }
 
 
 if __name__ == "__main__":
@@ -215,10 +228,13 @@ if __name__ == "__main__":
     print(json.dumps(findings, indent=2))
 
     print("\n=== Blue Agent Findings ===")
-    threats = findings.get("threats_detected", [])
-    if not threats:
-        print("[-] No threats detected.")
+    if findings.get("status") == "error":
+        print(f"[!] INVESTIGATION FAILED: {findings.get('error_detail')}")
     else:
-        for threat in threats:
-            print(f"[!] {threat['attack_type']}: {threat['reasoning']}")
-            print(f"    Proposed action: {threat['proposed_action']}\n")
+        threats = findings.get("threats_detected", [])
+        if not threats:
+            print("[-] No threats detected (investigation completed successfully).")
+        else:
+            for threat in threats:
+                print(f"[!] {threat['attack_type']}: {threat['reasoning']}")
+                print(f"    Proposed action: {threat['proposed_action']}\n")

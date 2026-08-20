@@ -23,3 +23,6 @@ Thumbs.db
 # IDE
 .vscode/
 *.code-workspace
+
+# node modules
+node_modules/

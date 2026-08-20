@@ -82,11 +82,12 @@ def investigate(authorized: bool = Depends(verify_api_key)):
     pattern_report = audit_recent_actions()
 
     return {
-        "threats_detected": findings.get("threats_detected", []),
-        "governed_actions": processed_actions,
-        "pattern_audit": pattern_report,
-    }
-
+    "blue_agent_status": findings.get("status", "unknown"),
+    "blue_agent_error": findings.get("error_detail"),
+    "threats_detected": findings.get("threats_detected", []),
+    "governed_actions": processed_actions,
+    "pattern_audit": pattern_report,
+}
 
 @app.get("/audit-trail")
 def audit_trail(minutes: int = 60, authorized: bool = Depends(verify_api_key)):
