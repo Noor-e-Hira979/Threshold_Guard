@@ -1,6 +1,6 @@
 # Roadmap
 
-## Done (v1.2)
+## Done (v1.3)
 - [x] Sandboxed Docker target (DVWA + OPA)
 - [x] Red Agent + autonomous Adversarial Planning Agent
 - [x] Custom, dependency-free Blue Agent (dual scenario: SQLi + RoguePlanet/CVE-2026-50656)
