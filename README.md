@@ -67,7 +67,7 @@ Full methodology and data in `TESTING.md` and the wiki's Testing & Evaluation pa
 | Frontend | React + Vite + Tailwind CSS v4 |
 | Evaluation | Custom jailbreak, OPA robustness, log injection, and tamper-detection test harnesses |
 
-## Project Status: v1.2
+## Project Status: v1.3.2
 
 Complete and evaluated:
 - [x] Sandboxed Docker target
